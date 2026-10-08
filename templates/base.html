@@ -1,0 +1,155 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#5B334B"
+    >
+
+    <title>
+        {% block title %}
+            Beauty Booking
+        {% endblock %}
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/auth.css' %}"
+    >
+</head>
+
+<body>
+
+<div class="auth-page">
+
+    <main class="auth-shell">
+
+        <section class="auth-showcase">
+
+            <div class="brand">
+                <div class="brand-mark">
+                    BB
+                </div>
+
+                <span>
+                    Beauty Booking
+                </span>
+            </div>
+
+            <div class="showcase-content">
+
+                <span class="eyebrow">
+                    زیبایی، با خیال راحت
+                </span>
+
+                <h1>
+                    تجربه‌ی جدیدی از
+                    <span>رزرو خدمات زیبایی</span>
+                </h1>
+
+                <p>
+                    سالن مورد علاقه‌ات را پیدا کن،
+                    متخصص مورد نظرت را انتخاب کن
+                    و نوبتت را در چند لحظه ثبت کن.
+                </p>
+
+                <div class="showcase-tags">
+                    <span>سالن‌های منتخب</span>
+                    <span>متخصصان حرفه‌ای</span>
+                    <span>رزرو سریع</span>
+                </div>
+
+            </div>
+
+            <div class="floating-card">
+
+                <div class="floating-card-top">
+                    <div class="mini-avatar">
+                        ✦
+                    </div>
+
+                    <div>
+                        <strong>
+                            وقت زیبایی شما
+                        </strong>
+
+                        <span>
+                            آماده‌ی رزرو
+                        </span>
+                    </div>
+                </div>
+
+                <div class="booking-preview">
+
+                    <div>
+                        <small>
+                            خدمات
+                        </small>
+
+                        <strong>
+                            Hair & Beauty
+                        </strong>
+                    </div>
+
+                    <div class="booking-status">
+                        امروز
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <section class="auth-panel">
+
+            <div class="auth-panel-inner">
+
+                {% if messages %}
+                    <div class="messages">
+                        {% for message in messages %}
+                            <div class="message message-{{ message.tags }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% block content %}
+                {% endblock %}
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script>
+
+    const otpInput = document.querySelector(
+        '[data-otp-input]'
+    );
+
+    if (otpInput) {
+        otpInput.focus();
+    }
+
+</script>
+
+{% block scripts %}
+{% endblock %}
+
+</body>
+</html>

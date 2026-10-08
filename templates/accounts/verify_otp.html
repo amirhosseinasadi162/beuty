@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}
+    تأیید شماره | Beauty Booking
+{% endblock %}
+
+{% block content %}
+
+<div class="auth-header otp-header">
+
+    <span class="otp-back">
+        <a href="{% url 'accounts:login' %}">
+            برگشت
+        </a>
+    </span>
+
+    <span class="auth-kicker">
+        تقریباً تمام شد
+    </span>
+
+    <h2>
+        کد تأیید را وارد کن
+    </h2>
+
+    <p>
+        کد ارسال‌شده به
+        <strong dir="ltr">
+            {{ display_phone }}
+        </strong>
+        را وارد کن.
+    </p>
+
+</div>
+
+
+<form
+    method="post"
+    action="{% url 'accounts:verify_otp' %}"
+    class="auth-form"
+>
+
+    {% csrf_token %}
+
+    <div class="otp-field">
+
+        <label for="{{ form.code.id_for_label }}">
+            کد ۶ رقمی
+        </label>
+
+        <input
+            id="{{ form.code.id_for_label }}"
+            name="{{ form.code.html_name }}"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            minlength="6"
+            pattern="[0-9]{6}"
+            class="otp-input"
+            data-otp-input
+            placeholder="••••••"
+            dir="ltr"
+            value="{{ form.code.value|default:'' }}"
+        >
+
+        {% for error in form.code.errors %}
+            <span class="field-error">
+                {{ error }}
+            </span>
+        {% endfor %}
+
+    </div>
+
+
+    <button
+        type="submit"
+        class="primary-button"
+    >
+        تأیید و ادامه
+        <span>←</span>
+    </button>
+
+</form>
+
+
+{% if resend_error %}
+    <div class="form-alert">
+        {{ resend_error }}
+    </div>
+{% endif %}
+
+
+<div class="otp-resend">
+
+    <span>
+        کد را دریافت نکردی؟
+    </span>
+
+    <form
+        method="post"
+        action="{% url 'accounts:resend_otp' %}"
+    >
+
+        {% csrf_token %}
+
+        <button
+            type="submit"
+            class="text-button"
+            id="resend-button"
+            {% if resend_available_in > 0 %}
+                disabled
+            {% endif %}
+        >
+            <span id="resend-label">
+                {% if resend_available_in > 0 %}
+                    ارسال مجدد
+                {% else %}
+                    ارسال مجدد
+                {% endif %}
+            </span>
+
+            <span
+                id="resend-timer"
+                data-seconds="{{ resend_available_in }}"
+            ></span>
+
+        </button>
+
+    </form>
+
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const button =
+            document.getElementById("resend-button");
+
+        const timer =
+            document.getElementById("resend-timer");
+
+        const label =
+            document.getElementById("resend-label");
+
+        if (!button || !timer) {
+            return;
+        }
+
+        let remaining =
+            Number(timer.dataset.seconds || 0);
+
+        function updateTimer() {
+
+            if (remaining <= 0) {
+
+                button.disabled = false;
+
+                label.textContent =
+                    "ارسال مجدد";
+
+                timer.textContent =
+                    "";
+
+                return;
+            }
+
+            button.disabled = true;
+
+            label.textContent =
+                "ارسال مجدد";
+
+            timer.textContent =
+                `(${remaining} ثانیه)`;
+
+            remaining -= 1;
+
+            setTimeout(
+                updateTimer,
+                1000
+            );
+        }
+
+        updateTimer();
+    }
+);
+
+</script>
+
+{% endblock %}
