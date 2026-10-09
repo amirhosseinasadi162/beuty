@@ -3,11 +3,21 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.hashers import make_password
+from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from accounts.forms import OTPVerifyForm, PhoneForm
-from accounts.models import OTPCode, User
+from accounts.forms import (
+    LoginForm,
+    OTPVerifyForm,
+    RegisterForm,
+)
+from accounts.models import (
+    OTPCode,
+    RegistrationAttempt,
+    User,
+)
 from accounts.services.otp import (
     OTPAlreadyVerified,
     OTPExpired,
@@ -20,26 +30,36 @@ from accounts.services.otp import (
 )
 
 
-AUTH_FLOW_SESSION_KEY = "pending_auth"
+AUTH_FLOW_SESSION_KEY = "pending_registration"
+
+REGISTRATION_ATTEMPT_TTL_SECONDS = 10 * 60
 
 
-def _set_pending_auth(request, phone, purpose, otp_id):
-    request.session[AUTH_FLOW_SESSION_KEY] = {
+def _set_pending_registration(
+    request,
+    phone,
+    otp_id,
+    attempt_id,
+):
+    request.session[
+        AUTH_FLOW_SESSION_KEY
+    ] = {
         "phone": phone,
-        "purpose": purpose,
         "otp_id": otp_id,
+        "attempt_id": attempt_id,
+        "purpose": OTPCode.Purpose.REGISTRATION,
     }
 
     request.session.modified = True
 
 
-def _get_pending_auth(request):
+def _get_pending_registration(request):
     return request.session.get(
         AUTH_FLOW_SESSION_KEY
     )
 
 
-def _clear_pending_auth(request):
+def _clear_pending_registration(request):
     request.session.pop(
         AUTH_FLOW_SESSION_KEY,
         None,
@@ -61,15 +81,19 @@ def _mask_phone(phone):
     return f"{phone[:4]}••••{phone[-3:]}"
 
 
-def _get_verify_context(request, form, pending_auth):
+def _verify_context(
+    request,
+    form,
+    pending_registration,
+):
     resend_available_in = 0
 
     otp = (
         OTPCode.objects
         .filter(
-            id=pending_auth.get("otp_id"),
-            phone=pending_auth["phone"],
-            purpose=pending_auth["purpose"],
+            id=pending_registration.get("otp_id"),
+            phone=pending_registration["phone"],
+            purpose=OTPCode.Purpose.REGISTRATION,
         )
         .first()
     )
@@ -87,156 +111,177 @@ def _get_verify_context(request, form, pending_auth):
         ).total_seconds()
 
         if remaining > 0:
-            resend_available_in = int(remaining) + 1
+            resend_available_in = (
+                int(remaining) + 1
+            )
 
     return {
         "form": form,
-        "phone": pending_auth["phone"],
+        "phone": pending_registration["phone"],
         "display_phone": _mask_phone(
-            pending_auth["phone"]
+            pending_registration["phone"]
         ),
-        "purpose": pending_auth["purpose"],
-        "resend_available_in": resend_available_in,
+        "resend_available_in": (
+            resend_available_in
+        ),
     }
 
 
-def _send_otp(
-    request,
-    form,
-    purpose,
-    template_name,
-):
-    if not form.is_valid():
-        return render(
-            request,
-            template_name,
-            {"form": form},
-            status=400,
-        )
+# -----------------------------------------
+# Entry
+# -----------------------------------------
 
-    phone = form.cleaned_data["phone"]
+def entrypoint(request):
+    if request.user.is_authenticated:
+        return redirect("accounts:home")
 
-    service = OTPService()
+    return redirect("accounts:login")
 
-    try:
-        otp = service.request_otp(
-            phone=phone,
-            purpose=purpose,
-        )
 
-    except OTPResendTooSoon as exc:
-        form.add_error(
-            "phone",
-            f"لطفاً {exc.retry_after_seconds} ثانیه "
-            "قبل از درخواست مجدد صبر کنید.",
-        )
-
-        return render(
-            request,
-            template_name,
-            {"form": form},
-            status=429,
-        )
-
-    _set_pending_auth(
-        request=request,
-        phone=phone,
-        purpose=purpose,
-        otp_id=otp.id,
-    )
-
-    return redirect(
-        "accounts:verify_otp"
-    )
-
+# -----------------------------------------
+# Login
+# -----------------------------------------
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect(
-            "accounts:dashboard"
+        return redirect("accounts:home")
+
+    if request.method == "POST":
+        form = LoginForm(
+            request.POST,
+            request=request,
         )
 
-    form = PhoneForm()
+        if form.is_valid():
+            _login_user(
+                request,
+                form.get_user(),
+            )
+
+            return redirect(
+                "accounts:home"
+            )
+    else:
+        form = LoginForm()
 
     return render(
         request,
         "accounts/login.html",
-        {"form": form},
+        {
+            "form": form,
+        },
     )
 
 
-def login_request_otp(request):
-    if request.user.is_authenticated:
-        return redirect(
-            "accounts:dashboard"
-        )
-
-    if request.method != "POST":
-        return redirect(
-            "accounts:login"
-        )
-
-    form = PhoneForm(
-        request.POST
-    )
-
-    return _send_otp(
-        request=request,
-        form=form,
-        purpose=OTPCode.Purpose.LOGIN,
-        template_name="accounts/login.html",
-    )
-
+# -----------------------------------------
+# Registration
+# -----------------------------------------
 
 def register_view(request):
     if request.user.is_authenticated:
-        return redirect(
-            "accounts:dashboard"
+        return redirect("accounts:home")
+
+    if request.method == "POST":
+        form = RegisterForm(
+            request.POST,
         )
 
-    form = PhoneForm()
+        if form.is_valid():
+
+            phone = form.cleaned_data["phone"]
+            password = form.cleaned_data["password"]
+
+            service = OTPService()
+
+            try:
+                otp = service.request_otp(
+                    phone=phone,
+                    purpose=OTPCode.Purpose.REGISTRATION,
+                )
+
+            except OTPResendTooSoon as exc:
+                form.add_error(
+                    "phone",
+                    (
+                        f"لطفاً {exc.retry_after_seconds} "
+                        "ثانیه قبل از درخواست مجدد صبر کنید."
+                    ),
+                )
+
+                return render(
+                    request,
+                    "accounts/register.html",
+                    {
+                        "form": form,
+                        "password_help_texts": (
+                            form.password_help_texts
+                        ),
+                    },
+                    status=429,
+                )
+
+            attempt, _ = (
+                RegistrationAttempt.objects.update_or_create(
+                    phone=phone,
+                    defaults={
+                        "password_hash": make_password(
+                            password
+                        ),
+                        "expires_at": (
+                            timezone.now()
+                            + timedelta(
+                                seconds=(
+                                    REGISTRATION_ATTEMPT_TTL_SECONDS
+                                )
+                            )
+                        ),
+                    },
+                )
+            )
+
+            _set_pending_registration(
+                request=request,
+                phone=phone,
+                otp_id=otp.id,
+                attempt_id=attempt.id,
+            )
+
+            return redirect(
+                "accounts:verify_otp"
+            )
+
+    else:
+        form = RegisterForm()
 
     return render(
         request,
         "accounts/register.html",
-        {"form": form},
+        {
+            "form": form,
+            "password_help_texts": (
+                form.password_help_texts
+            ),
+        },
     )
 
 
-def register_request_otp(request):
-    if request.user.is_authenticated:
-        return redirect(
-            "accounts:dashboard"
-        )
-
-    if request.method != "POST":
-        return redirect(
-            "accounts:register"
-        )
-
-    form = PhoneForm(
-        request.POST
-    )
-
-    return _send_otp(
-        request=request,
-        form=form,
-        purpose=OTPCode.Purpose.REGISTRATION,
-        template_name="accounts/register.html",
-    )
-
+# -----------------------------------------
+# OTP Verification
+# -----------------------------------------
 
 def verify_otp(request):
-    pending_auth = _get_pending_auth(request)
+    pending = _get_pending_registration(
+        request
+    )
 
-    if not pending_auth:
+    if not pending:
         messages.error(
             request,
-            "جلسه تأیید منقضی شده است. دوباره درخواست کد کنید.",
+            "جلسه ثبت‌نام منقضی شده است. دوباره شروع کنید.",
         )
 
         return redirect(
-            "accounts:login"
+            "accounts:register"
         )
 
     if request.method == "GET":
@@ -245,10 +290,10 @@ def verify_otp(request):
         return render(
             request,
             "accounts/verify_otp.html",
-            _get_verify_context(
+            _verify_context(
                 request,
                 form,
-                pending_auth,
+                pending,
             ),
         )
 
@@ -260,10 +305,10 @@ def verify_otp(request):
         return render(
             request,
             "accounts/verify_otp.html",
-            _get_verify_context(
+            _verify_context(
                 request,
                 form,
-                pending_auth,
+                pending,
             ),
             status=400,
         )
@@ -272,8 +317,8 @@ def verify_otp(request):
 
     try:
         service.verify_otp(
-            phone=pending_auth["phone"],
-            purpose=pending_auth["purpose"],
+            phone=pending["phone"],
+            purpose=OTPCode.Purpose.REGISTRATION,
             code=form.cleaned_data["code"],
         )
 
@@ -286,10 +331,10 @@ def verify_otp(request):
         return render(
             request,
             "accounts/verify_otp.html",
-            _get_verify_context(
+            _verify_context(
                 request,
                 form,
-                pending_auth,
+                pending,
             ),
             status=400,
         )
@@ -297,16 +342,16 @@ def verify_otp(request):
     except OTPExpired:
         form.add_error(
             "code",
-            "این کد منقضی شده است. کد جدید دریافت کنید.",
+            "کد تأیید منقضی شده است. کد جدید دریافت کنید.",
         )
 
         return render(
             request,
             "accounts/verify_otp.html",
-            _get_verify_context(
+            _verify_context(
                 request,
                 form,
-                pending_auth,
+                pending,
             ),
             status=400,
         )
@@ -320,10 +365,10 @@ def verify_otp(request):
         return render(
             request,
             "accounts/verify_otp.html",
-            _get_verify_context(
+            _verify_context(
                 request,
                 form,
-                pending_auth,
+                pending,
             ),
             status=429,
         )
@@ -337,41 +382,89 @@ def verify_otp(request):
         return render(
             request,
             "accounts/verify_otp.html",
-            _get_verify_context(
+            _verify_context(
                 request,
                 form,
-                pending_auth,
+                pending,
             ),
             status=400,
         )
 
     except OTPNotFound:
-        _clear_pending_auth(request)
+        _clear_pending_registration(
+            request
+        )
 
         messages.error(
             request,
-            "درخواست تأیید معتبر نیست. دوباره شروع کنید.",
+            "درخواست تأیید معتبر نیست. دوباره ثبت‌نام را شروع کنید.",
         )
 
         return redirect(
-            "accounts:login"
+            "accounts:register"
         )
 
-    phone = pending_auth["phone"]
-    purpose = pending_auth["purpose"]
+    attempt_id = pending["attempt_id"]
+    phone = pending["phone"]
 
-    _clear_pending_auth(request)
+    with transaction.atomic():
 
-    # -----------------------------
-    # Registration
-    # -----------------------------
-    if purpose == OTPCode.Purpose.REGISTRATION:
+        attempt = (
+            RegistrationAttempt.objects
+            .select_for_update()
+            .filter(
+                id=attempt_id,
+                phone=phone,
+            )
+            .first()
+        )
 
-        existing_user = User.objects.filter(
-            phone=phone,
-        ).first()
+        if not attempt:
+            _clear_pending_registration(
+                request
+            )
 
-        if existing_user:
+            messages.error(
+                request,
+                "اطلاعات ثبت‌نام دیگر معتبر نیست.",
+            )
+
+            return redirect(
+                "accounts:register"
+            )
+
+        if attempt.is_expired:
+            attempt.delete()
+
+            _clear_pending_registration(
+                request
+            )
+
+            messages.error(
+                request,
+                "زمان ثبت‌نام به پایان رسیده است.",
+            )
+
+            return redirect(
+                "accounts:register"
+            )
+
+        user = (
+            User.objects
+            .select_for_update()
+            .filter(phone=phone)
+            .first()
+        )
+
+        # شماره قبلاً ثبت شده است.
+        if user and user.phone_verified:
+
+            attempt.delete()
+
+            _clear_pending_registration(
+                request
+            )
+
             messages.info(
                 request,
                 "این شماره قبلاً ثبت شده است. "
@@ -382,50 +475,34 @@ def verify_otp(request):
                 "accounts:login"
             )
 
-        user = User.objects.create(
-            phone=phone,
-            phone_verified=True,
-        )
+        # اگر یک ثبت‌نام ناقص قدیمی وجود داشته باشد،
+        # همان حساب تکمیل می‌شود.
+        if user:
+            user.password = attempt.password_hash
+            user.phone_verified = True
+            user.is_active = True
 
-        _login_user(
-            request,
-            user,
-        )
+            user.save(
+                update_fields=[
+                    "password",
+                    "phone_verified",
+                    "is_active",
+                ]
+            )
 
-        messages.success(
-            request,
-            "حساب شما با موفقیت ایجاد شد.",
-        )
+        else:
+            user = User.objects.create(
+                phone=phone,
+                password=attempt.password_hash,
+                phone_verified=True,
+                is_active=True,
+            )
 
-        return redirect(
-            "accounts:dashboard"
-        )
+        attempt.delete()
 
-    # -----------------------------
-    # Login
-    # -----------------------------
-    user = User.objects.filter(
-        phone=phone,
-    ).first()
-
-    if not user:
-        messages.info(
-            request,
-            "حسابی با این شماره پیدا نشد. ابتدا ثبت‌نام کنید.",
-        )
-
-        return redirect(
-            "accounts:register"
-        )
-
-    if not user.phone_verified:
-        user.phone_verified = True
-
-        user.save(
-            update_fields=[
-                "phone_verified"
-            ]
-        )
+    _clear_pending_registration(
+        request
+    )
 
     _login_user(
         request,
@@ -434,51 +511,58 @@ def verify_otp(request):
 
     messages.success(
         request,
-        "با موفقیت وارد شدید.",
+        "حساب شما با موفقیت ایجاد شد.",
     )
 
     return redirect(
-        "accounts:dashboard"
+        "accounts:home"
     )
 
+
+# -----------------------------------------
+# Resend OTP
+# -----------------------------------------
 
 def resend_otp(request):
     if request.method != "POST":
         return redirect(
-            "accounts:login"
+            "accounts:register"
         )
 
-    pending_auth = _get_pending_auth(request)
+    pending = _get_pending_registration(
+        request
+    )
 
-    if not pending_auth:
+    if not pending:
         messages.error(
             request,
-            "جلسه تأیید شما منقضی شده است.",
+            "جلسه ثبت‌نام شما منقضی شده است.",
         )
 
         return redirect(
-            "accounts:login"
+            "accounts:register"
         )
 
     service = OTPService()
 
     try:
         otp = service.request_otp(
-            phone=pending_auth["phone"],
-            purpose=pending_auth["purpose"],
+            phone=pending["phone"],
+            purpose=OTPCode.Purpose.REGISTRATION,
         )
 
     except OTPResendTooSoon as exc:
         form = OTPVerifyForm()
 
-        context = _get_verify_context(
+        context = _verify_context(
             request,
             form,
-            pending_auth,
+            pending,
         )
 
         context["resend_error"] = (
-            f"لطفاً {exc.retry_after_seconds} ثانیه دیگر صبر کنید."
+            f"لطفاً {exc.retry_after_seconds} "
+            "ثانیه دیگر صبر کنید."
         )
 
         return render(
@@ -488,11 +572,25 @@ def resend_otp(request):
             status=429,
         )
 
-    _set_pending_auth(
+    RegistrationAttempt.objects.filter(
+        id=pending["attempt_id"],
+        phone=pending["phone"],
+    ).update(
+        expires_at=(
+            timezone.now()
+            + timedelta(
+                seconds=(
+                    REGISTRATION_ATTEMPT_TTL_SECONDS
+                )
+            )
+        )
+    )
+
+    _set_pending_registration(
         request=request,
-        phone=pending_auth["phone"],
-        purpose=pending_auth["purpose"],
+        phone=pending["phone"],
         otp_id=otp.id,
+        attempt_id=pending["attempt_id"],
     )
 
     messages.success(
@@ -505,13 +603,21 @@ def resend_otp(request):
     )
 
 
+# -----------------------------------------
+# Home
+# -----------------------------------------
+
 @login_required
-def dashboard(request):
+def home(request):
     return render(
         request,
-        "accounts/dashboard.html",
+        "accounts/home.html",
     )
 
+
+# -----------------------------------------
+# Logout
+# -----------------------------------------
 
 def logout_view(request):
     if request.method == "POST":

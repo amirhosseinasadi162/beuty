@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 
 {% block title %}
-    ثبت‌نام | Beauty Booking
+ثبت‌نام | Beauty Booking
 {% endblock %}
+
 
 {% block content %}
 
@@ -17,25 +18,24 @@
     </h2>
 
     <p>
-        فقط شماره موبایلت را وارد کن.
-        حساب تو با تأیید شماره ساخته می‌شود.
+        شماره موبایل و یک رمز امن انتخاب کن.
+        بعد از تأیید شماره، حساب تو ساخته می‌شود.
     </p>
 
 </div>
 
 
-<form
-    method="post"
-    action="{% url 'accounts:register_request_otp' %}"
-    class="auth-form"
->
+<form method="post" class="auth-form">
 
     {% csrf_token %}
 
+
     {% if form.non_field_errors %}
+
         <div class="form-alert">
             {{ form.non_field_errors }}
         </div>
+
     {% endif %}
 
 
@@ -45,11 +45,7 @@
             شماره موبایل
         </label>
 
-        <div class="input-wrap">
-
-            <span class="input-icon">
-                ☎
-            </span>
+        <div class="input-box">
 
             <input
                 id="{{ form.phone.id_for_label }}"
@@ -65,10 +61,118 @@
 
         </div>
 
+
         {% for error in form.phone.errors %}
+
             <span class="field-error">
                 {{ error }}
             </span>
+
+        {% endfor %}
+
+    </div>
+
+
+    <div class="field">
+
+        <label for="{{ form.password.id_for_label }}">
+            رمز عبور
+        </label>
+
+        <div class="password-box">
+
+            <input
+                id="{{ form.password.id_for_label }}"
+                type="password"
+                name="{{ form.password.html_name }}"
+                placeholder="یک رمز امن انتخاب کن"
+                autocomplete="new-password"
+                dir="ltr"
+            >
+
+            <button
+                type="button"
+                class="show-password"
+                data-password-toggle
+                data-target="{{ form.password.id_for_label }}"
+            >
+                نمایش
+            </button>
+
+        </div>
+
+
+        {% for error in form.password.errors %}
+
+            <span class="field-error">
+                {{ error }}
+            </span>
+
+        {% endfor %}
+
+
+        {% if password_help_texts %}
+
+            <div class="password-help">
+
+                <strong>
+                    برای انتخاب رمز بهتر:
+                </strong>
+
+                <ul>
+
+                    {% for help_text in password_help_texts %}
+
+                        <li>
+                            {{ help_text }}
+                        </li>
+
+                    {% endfor %}
+
+                </ul>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <div class="field">
+
+        <label for="{{ form.password_confirm.id_for_label }}">
+            تکرار رمز عبور
+        </label>
+
+        <div class="password-box">
+
+            <input
+                id="{{ form.password_confirm.id_for_label }}"
+                type="password"
+                name="{{ form.password_confirm.html_name }}"
+                placeholder="رمز را دوباره وارد کن"
+                autocomplete="new-password"
+                dir="ltr"
+            >
+
+            <button
+                type="button"
+                class="show-password"
+                data-password-toggle
+                data-target="{{ form.password_confirm.id_for_label }}"
+            >
+                نمایش
+            </button>
+
+        </div>
+
+
+        {% for error in form.password_confirm.errors %}
+
+            <span class="field-error">
+                {{ error }}
+            </span>
+
         {% endfor %}
 
     </div>
@@ -76,7 +180,7 @@
 
     <button
         type="submit"
-        class="primary-button"
+        class="primary"
     >
         ادامه و دریافت کد
         <span>←</span>
@@ -85,33 +189,35 @@
 </form>
 
 
-<div class="security-note">
+<div class="security">
 
-    <span class="security-icon">
+    <div class="security-icon">
         ✓
-    </span>
+    </div>
 
     <p>
-        با ادامه، شماره موبایل شما فقط برای
-        احراز هویت و مدیریت حساب استفاده می‌شود.
+        رمز عبور شما به‌صورت امن ذخیره می‌شود
+        و شماره موبایل برای تأیید مالکیت حساب استفاده خواهد شد.
     </p>
 
 </div>
 
 
-<div class="auth-divider">
+<div class="divider">
     <span>یا</span>
 </div>
 
 
-<div class="auth-switch">
+<div class="switch">
+
     <span>
-        قبلاً حساب ساخته‌ای؟
+        قبلاً حساب داری؟
     </span>
 
     <a href="{% url 'accounts:login' %}">
         وارد شو
     </a>
+
 </div>
 
 {% endblock %}

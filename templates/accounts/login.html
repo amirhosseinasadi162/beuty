@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 
 {% block title %}
-    ورود | Beauty Booking
+ورود | Beauty Booking
 {% endblock %}
+
 
 {% block content %}
 
@@ -13,29 +14,28 @@
     </span>
 
     <h2>
-        وارد حسابت شو
+        وارد حساب خودت شو
     </h2>
 
     <p>
-        برای ورود، شماره موبایلت را وارد کن.
-        کد تأیید برایت ارسال می‌شود.
+        شماره موبایل و رمز شخصی خودت را وارد کن
+        تا وارد Beauty Booking شوی.
     </p>
 
 </div>
 
 
-<form
-    method="post"
-    action="{% url 'accounts:login_request_otp' %}"
-    class="auth-form"
->
+<form method="post" class="auth-form">
 
     {% csrf_token %}
 
+
     {% if form.non_field_errors %}
+
         <div class="form-alert">
             {{ form.non_field_errors }}
         </div>
+
     {% endif %}
 
 
@@ -45,11 +45,7 @@
             شماره موبایل
         </label>
 
-        <div class="input-wrap">
-
-            <span class="input-icon">
-                ☎
-            </span>
+        <div class="input-box">
 
             <input
                 id="{{ form.phone.id_for_label }}"
@@ -60,15 +56,57 @@
                 autocomplete="tel"
                 inputmode="tel"
                 dir="ltr"
-                autofocus
             >
 
         </div>
 
+
         {% for error in form.phone.errors %}
+
             <span class="field-error">
                 {{ error }}
             </span>
+
+        {% endfor %}
+
+    </div>
+
+
+    <div class="field">
+
+        <label for="{{ form.password.id_for_label }}">
+            رمز عبور
+        </label>
+
+        <div class="password-box">
+
+            <input
+                id="{{ form.password.id_for_label }}"
+                type="password"
+                name="{{ form.password.html_name }}"
+                placeholder="رمز عبور خود را وارد کنید"
+                autocomplete="current-password"
+                dir="ltr"
+            >
+
+            <button
+                type="button"
+                class="show-password"
+                data-password-toggle
+                data-target="{{ form.password.id_for_label }}"
+            >
+                نمایش
+            </button>
+
+        </div>
+
+
+        {% for error in form.password.errors %}
+
+            <span class="field-error">
+                {{ error }}
+            </span>
+
         {% endfor %}
 
     </div>
@@ -76,28 +114,30 @@
 
     <button
         type="submit"
-        class="primary-button"
+        class="primary"
     >
-        دریافت کد ورود
+        ورود به حساب
         <span>←</span>
     </button>
 
 </form>
 
 
-<div class="auth-divider">
+<div class="divider">
     <span>یا</span>
 </div>
 
 
-<div class="auth-switch">
+<div class="switch">
+
     <span>
-        هنوز حسابی نداری؟
+        هنوز حساب نداری؟
     </span>
 
     <a href="{% url 'accounts:register' %}">
         ثبت‌نام کن
     </a>
+
 </div>
 
 {% endblock %}

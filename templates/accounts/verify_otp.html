@@ -1,26 +1,33 @@
 {% extends "base.html" %}
 
+
 {% block title %}
-    تأیید شماره | Beauty Booking
+تأیید شماره | Beauty Booking
 {% endblock %}
+
 
 {% block content %}
 
-<div class="auth-header otp-header">
+<div class="auth-header">
 
-    <span class="otp-back">
-        <a href="{% url 'accounts:login' %}">
-            برگشت
+    <div class="otp-back">
+
+        <a href="{% url 'accounts:register' %}">
+            ← برگشت به ثبت‌نام
         </a>
-    </span>
+
+    </div>
+
 
     <span class="auth-kicker">
-        تقریباً تمام شد
+        تأیید شماره موبایل
     </span>
+
 
     <h2>
         کد تأیید را وارد کن
     </h2>
+
 
     <p>
         کد ارسال‌شده به
@@ -41,11 +48,13 @@
 
     {% csrf_token %}
 
-    <div class="otp-field">
+
+    <div class="otp-box">
 
         <label for="{{ form.code.id_for_label }}">
             کد ۶ رقمی
         </label>
+
 
         <input
             id="{{ form.code.id_for_label }}"
@@ -61,12 +70,15 @@
             placeholder="••••••"
             dir="ltr"
             value="{{ form.code.value|default:'' }}"
-        >
+        />
+
 
         {% for error in form.code.errors %}
+
             <span class="field-error">
                 {{ error }}
             </span>
+
         {% endfor %}
 
     </div>
@@ -74,9 +86,9 @@
 
     <button
         type="submit"
-        class="primary-button"
+        class="primary"
     >
-        تأیید و ادامه
+        تأیید و ساخت حساب
         <span>←</span>
     </button>
 
@@ -84,9 +96,11 @@
 
 
 {% if resend_error %}
-    <div class="form-alert">
+
+    <div class="form-alert" style="margin-top:16px;">
         {{ resend_error }}
     </div>
+
 {% endif %}
 
 
@@ -95,6 +109,7 @@
     <span>
         کد را دریافت نکردی؟
     </span>
+
 
     <form
         method="post"
@@ -111,87 +126,19 @@
                 disabled
             {% endif %}
         >
-            <span id="resend-label">
+
+            ارسال مجدد
+
+            <span id="resend-timer">
                 {% if resend_available_in > 0 %}
-                    ارسال مجدد
-                {% else %}
-                    ارسال مجدد
+                    ({{ resend_available_in }} ثانیه)
                 {% endif %}
             </span>
-
-            <span
-                id="resend-timer"
-                data-seconds="{{ resend_available_in }}"
-            ></span>
 
         </button>
 
     </form>
 
 </div>
-
-{% endblock %}
-
-
-{% block scripts %}
-
-<script>
-
-document.addEventListener(
-    "DOMContentLoaded",
-    function () {
-
-        const button =
-            document.getElementById("resend-button");
-
-        const timer =
-            document.getElementById("resend-timer");
-
-        const label =
-            document.getElementById("resend-label");
-
-        if (!button || !timer) {
-            return;
-        }
-
-        let remaining =
-            Number(timer.dataset.seconds || 0);
-
-        function updateTimer() {
-
-            if (remaining <= 0) {
-
-                button.disabled = false;
-
-                label.textContent =
-                    "ارسال مجدد";
-
-                timer.textContent =
-                    "";
-
-                return;
-            }
-
-            button.disabled = true;
-
-            label.textContent =
-                "ارسال مجدد";
-
-            timer.textContent =
-                `(${remaining} ثانیه)`;
-
-            remaining -= 1;
-
-            setTimeout(
-                updateTimer,
-                1000
-            );
-        }
-
-        updateTimer();
-    }
-);
-
-</script>
 
 {% endblock %}

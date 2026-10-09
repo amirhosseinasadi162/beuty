@@ -17,12 +17,21 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from accounts.views import entrypoint
+
 
 urlpatterns = [
     path(
         "admin/",
         admin.site.urls,
     ),
+
+    path(
+        "",
+        entrypoint,
+        name="entrypoint",
+    ),
+
     path(
         "account/",
         include("accounts.urls"),

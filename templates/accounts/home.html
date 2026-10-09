@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+
+{% block title %}
+خانه | Beauty Booking
+{% endblock %}
+
+
+{% block content %}
+
+<div class="home-title">
+
+    <span class="auth-kicker">
+        Beauty Booking
+    </span>
+
+    <h2>
+        خوش اومدی 🌷
+    </h2>
+
+    <p>
+        اینجا مرکز تجربه‌ی زیبایی توست.
+        بخش‌های اصلی پلتفرم از همین‌جا در دسترس خواهند بود.
+    </p>
+
+</div>
+
+
+<div class="home-grid">
+
+
+    <div class="home-card">
+
+        <div class="home-icon">
+            ♡
+        </div>
+
+        <div class="home-info">
+
+            <small>
+                بخش اول
+            </small>
+
+            <h3>
+                نوبت من
+            </h3>
+
+            <p>
+                مشاهده و مدیریت نوبت‌های شما
+            </p>
+
+        </div>
+
+        <div class="home-arrow">
+            ←
+        </div>
+
+    </div>
+
+
+    <div class="home-card">
+
+        <div class="home-icon">
+            ✦
+        </div>
+
+        <div class="home-info">
+
+            <small>
+                بخش دوم
+            </small>
+
+            <h3>
+                سالن من
+            </h3>
+
+            <p>
+                مدیریت سالن‌ها و خدمات زیبایی
+            </p>
+
+        </div>
+
+        <div class="home-arrow">
+            ←
+        </div>
+
+    </div>
+
+
+    <div class="home-card">
+
+        <div class="home-icon">
+            ✧
+        </div>
+
+        <div class="home-info">
+
+            <small>
+                بخش سوم
+            </small>
+
+            <h3>
+                متخصص
+            </h3>
+
+            <p>
+                فضای تخصصی برای متخصصان زیبایی
+            </p>
+
+        </div>
+
+        <div class="home-arrow">
+            ←
+        </div>
+
+    </div>
+
+
+</div>
+
+
+<form
+    method="post"
+    action="{% url 'accounts:logout' %}"
+>
+
+    {% csrf_token %}
+
+    <button
+        type="submit"
+        class="logout"
+    >
+        خروج از حساب
+    </button>
+
+</form>
+
+{% endblock %}

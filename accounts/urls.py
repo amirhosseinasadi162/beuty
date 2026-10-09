@@ -12,21 +12,11 @@ urlpatterns = [
         views.login_view,
         name="login",
     ),
-    path(
-        "login/request-otp/",
-        views.login_request_otp,
-        name="login_request_otp",
-    ),
 
     path(
         "register/",
         views.register_view,
         name="register",
-    ),
-    path(
-        "register/request-otp/",
-        views.register_request_otp,
-        name="register_request_otp",
     ),
 
     path(
@@ -34,6 +24,7 @@ urlpatterns = [
         views.verify_otp,
         name="verify_otp",
     ),
+
     path(
         "verify-otp/resend/",
         views.resend_otp,
@@ -41,10 +32,11 @@ urlpatterns = [
     ),
 
     path(
-        "dashboard/",
-        views.dashboard,
-        name="dashboard",
+        "home/",
+        views.home,
+        name="home",
     ),
+
     path(
         "logout/",
         views.logout_view,
